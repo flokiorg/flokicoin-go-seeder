@@ -1,0 +1,14 @@
+{
+    "Name": "Flokicoin",
+    "Desc": "Flokicoin Mainnet",
+    "Id": "0xd9b4bef9",
+    "Port": 15212,
+    "Pver": 70016,
+    "DNSName": "seed.example.com",
+    "TTL": 500,
+    "InitialIPs": [],
+    "Seeders": [
+        "seed1.example.com",
+        "seed2.example.com"
+    ]
+}
