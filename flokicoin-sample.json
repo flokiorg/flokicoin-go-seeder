@@ -10,5 +10,9 @@
     "Seeders": [
         "seed1.example.com",
         "seed2.example.com"
-    ]
+    ],
+    "Cloudflare": {
+        "Enabled": false,
+        "ApiToken": "xxxxxx"
+    }
 }
