@@ -2,6 +2,7 @@
 
 ## Features
 
+* Dynamic Cloudflare A-Record Management: sync DNS records with active nodes.
 * Supports multiple networks. You can run multiple seeders off one ip address.
 * Uses Go Language so it can easily be compiled and run on multiple platforms.
 * Minimal resource requirements. Will easily seed multiple networks on a Raspberry Pi 1 Mobel B+
