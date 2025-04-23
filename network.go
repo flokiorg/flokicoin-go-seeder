@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,6 +22,13 @@ type JNetwork struct {
 	TTL        uint32
 	InitialIPs []string
 	Seeders    []string
+	Cloudflare *JCloudflare
+}
+
+// JCloudflare
+type JCloudflare struct {
+	Enabled  bool
+	ApiToken string
 }
 
 func createNetFile() {
@@ -83,12 +91,12 @@ func loadNetwork(fName string) (*dnsseeder, error) {
 func initNetwork(jnw JNetwork) (*dnsseeder, error) {
 
 	if jnw.Port == 0 {
-		return nil, fmt.Errorf("Invalid port supplied: %v", jnw.Port)
+		return nil, fmt.Errorf("invalid port supplied: %v", jnw.Port)
 
 	}
 
 	if jnw.DNSName == "" {
-		return nil, fmt.Errorf("No DNS Hostname supplied")
+		return nil, fmt.Errorf("no DNS Hostname supplied")
 	}
 
 	// init the seeder
@@ -100,6 +108,20 @@ func initNetwork(jnw JNetwork) (*dnsseeder, error) {
 	seeder.name = jnw.Name
 	seeder.desc = jnw.Desc
 	seeder.dnsHost = jnw.DNSName
+
+	if jnw.Cloudflare != nil && jnw.Cloudflare.Enabled {
+		cfHandler, err := NewCFHandler(context.Background(), jnw.Cloudflare.ApiToken, jnw.DNSName)
+		if err != nil {
+			return nil, fmt.Errorf("unable to setup cloudflare connection: %v", err)
+		}
+
+		// api test
+		if _, err = cfHandler.ListRecords(context.Background()); err != nil {
+			return nil, fmt.Errorf("unable to setup cloudflare: %v", err)
+		}
+
+		seeder.cfHandler = cfHandler
+	}
 
 	// conver the network magic number to a Uint32
 	t1, err := strconv.ParseUint(jnw.ID, 0, 32)
@@ -128,7 +150,7 @@ func initNetwork(jnw JNetwork) (*dnsseeder, error) {
 		seeder.ttl = 60
 	}
 
-	if dup, err := isDuplicateSeeder(seeder); dup == true {
+	if dup, err := isDuplicateSeeder(seeder); dup {
 		return nil, err
 	}
 
