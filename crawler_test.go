@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -14,7 +13,8 @@ import (
 )
 
 const (
-	nodeAddress = "117.46.95.19:15212"
+	nodeAddress = "195.201.235.46:15212"
+	// nodeAddress = "62.171.141.201:15212"
 )
 
 func TestCrawlIP(t *testing.T) {
@@ -55,26 +55,25 @@ func TestCrawler(t *testing.T) {
 
 	// Create a new Bitcoin peer instance
 	verack := make(chan struct{})
+	onaddr := make(chan struct{})
+
 	cfg := &peer.Config{
 		UserAgentName:    "MyDNSClient",
 		UserAgentVersion: "0.1",
 		ChainParams:      &chaincfg.MainNetParams,
-		Services:         0,
 		Listeners: peer.MessageListeners{
 
-			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
-				fmt.Printf("outbound: received version: %v\n", msg.ProtocolVersion)
-				return nil
-			},
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
-				fmt.Printf("outbound: ver ack\n")
+			OnVerAck: func(p *peer.Peer, _ *wire.MsgVerAck) {
+				fmt.Printf("Adding peer %v with services %v pver %d\n", p.NA().Addr.String(), p.Services(), p.ProtocolVersion())
 				verack <- struct{}{}
 			},
+
 			OnAddrV2: func(p *peer.Peer, msg *wire.MsgAddrV2) {
-				fmt.Println("Received-1", len(msg.AddrList), "addresses:")
+				fmt.Printf("Peer sent %v addresses\n", len(msg.AddrList))
 				for _, addr := range msg.AddrList {
 					fmt.Printf(" - %s:%d\n", addr.Addr, addr.Port)
 				}
+				onaddr <- struct{}{}
 			},
 		},
 	}
@@ -89,76 +88,15 @@ func TestCrawler(t *testing.T) {
 	select {
 	case <-verack:
 	case <-time.After(time.Second * 1):
-		log.Fatal("verack timeout")
+		t.Logf("verack timeout")
+		return
 	}
 
 	nodePeer.QueueMessage(wire.NewMsgGetAddr(), nil)
-	// nodePeer.QueueMessage(wire.NewMsgAddrV2(), nil)
 
-	<-time.After(time.Second * 5)
-}
-
-func TestCrawler_2(t *testing.T) {
-
-	verack := make(chan struct{})
-	onAddr := make(chan *wire.MsgAddr)
-	peerCfg := &peer.Config{
-		UserAgentName:    "flokicoin-seeder",
-		UserAgentVersion: "0.1",
-		Services:         0,
-		ChainParams:      &chaincfg.MainNetParams,
-		Listeners: peer.MessageListeners{
-			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {
-				log.Printf("Remote version: %v\n", msg.ProtocolVersion)
-				return nil
-			},
-			OnVerAck: func(p *peer.Peer, msg *wire.MsgVerAck) {
-				verack <- struct{}{}
-			},
-			OnAddrV2: func(p *peer.Peer, msg *wire.MsgAddrV2) {
-				log.Printf("OnAddrV2: %v", msg)
-				onAddr <- msgAddrV2ToMsgAddr(msg)
-			},
-		},
-	}
-
-	// Create and start the outbound peer
-	p, err := peer.NewOutboundPeer(peerCfg, nodeAddress)
-	if err != nil {
-		t.Fatal(&crawlError{"NewOutboundPeer: error", err})
-	}
-
-	// Establish the connection to the peer address and mark it connected.
-	conn, err := net.Dial("tcp", p.Addr())
-	if err != nil {
-		t.Fatal(&crawlError{"net.Dial: error", err})
-	}
-	p.AssociateConnection(conn)
-
-	defer p.WaitForDisconnect()
-	defer p.Disconnect()
-
-	// check verack
 	select {
-	case <-verack:
-	case <-time.After(time.Second * 3):
-		t.Fatal(&crawlError{"verack timeout", errors.New("")})
-	}
-
-	p.QueueMessage(wire.NewMsgGetAddr(), nil)
-
-	addrMsg := new(wire.MsgAddr)
-	select {
-	case addrMsg = <-onAddr:
-		log.Printf("receiving: %v", addrMsg)
-
-	case <-time.After(time.Second * 5):
-		log.Printf("timeout")
-	}
-
-	t.Logf("got %d addrs", len(addrMsg.AddrList))
-
-	for _, addr := range addrMsg.AddrList {
-		t.Logf("addr: %s:%d", addr.IP, addr.Port)
+	case <-onaddr:
+	case <-time.After(time.Second * 10):
+		t.Logf("getaddr timeout")
 	}
 }

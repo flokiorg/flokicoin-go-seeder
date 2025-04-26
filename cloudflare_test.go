@@ -78,3 +78,21 @@ func TestManageRecords(t *testing.T) {
 	}
 
 }
+
+func TestPruneRecords(t *testing.T) {
+
+	cf := setupConnection(t)
+
+	records, err := cf.ListRecords(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, r := range records {
+		t.Logf("deleting %s", r.Content)
+
+		if err := cf.DeleteARecord(context.Background(), r.Content); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

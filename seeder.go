@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"net"
@@ -10,7 +9,6 @@ import (
 	"time"
 
 	"github.com/flokiorg/go-flokicoin/wire"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -22,8 +20,9 @@ const (
 	maxPort = 65535
 
 	crawlDelay = 22 // seconds between start crawlwer ticks
-	auditDelay = 60 // minutes between audit channel ticks
+	auditDelay = 22 // minutes between audit channel ticks
 	dnsDelay   = 57 // seconds between updates to active dns record list
+	cfDelay    = 21 // seconds between updates to active cloudflare record list
 
 	maxFails = 58 // max number of connect fails before we delete a node. Just over 24 hours(checked every 33 minutes)
 
@@ -133,16 +132,11 @@ func (s *dnsseeder) initSeeder() {
 
 	// load from cloudflare
 	if s.cfHandler != nil {
-		records, err := s.cfHandler.ListRecords(context.Background())
-		if err != nil {
-			log.Printf("%s: unable to do initial lookup cloudflare: %v\n", s.name, err)
-			return
-		}
-
-		for _, r := range records {
-			if newIP := net.ParseIP(r.Content); newIP != nil {
+		addrs := s.cfHandler.Addresses()
+		for _, addr := range addrs {
+			if newIP := net.ParseIP(addr); newIP != nil {
 				if ok := s.addNa(wire.NewNetAddressIPPort(newIP, s.port, 1)); ok {
-					log.Printf("%s: crawling with cloudflare IP %s \n", s.name, r.Content)
+					log.Printf("%s: crawling with cloudflare IP %s \n", s.name, addr)
 				}
 			}
 		}
@@ -163,14 +157,11 @@ func (s *dnsseeder) runSeeder(done <-chan struct{}, wg *sync.WaitGroup) {
 	// start initial scan now so we don't have to wait for the timers to fire
 	s.startCrawlers(resultsChan)
 
-	s.auditNodes()
-
 	// create timing channels for regular tasks
-	// auditChan := time.NewTicker(time.Minute * auditDelay).C
-
-	auditChan := time.NewTicker(time.Second * auditDelay).C
+	auditChan := time.NewTicker(time.Minute * auditDelay).C
 	crawlChan := time.NewTicker(time.Second * crawlDelay).C
 	dnsChan := time.NewTicker(time.Second * dnsDelay).C
+	cfChan := time.NewTicker(time.Second * cfDelay).C
 
 	dowhile := true
 	for dowhile {
@@ -187,6 +178,9 @@ func (s *dnsseeder) runSeeder(done <-chan struct{}, wg *sync.WaitGroup) {
 		case <-crawlChan:
 			// start a scan to crawl nodes
 			s.startCrawlers(resultsChan)
+		case <-cfChan:
+			// start a scan to crawl nodes
+			s.updateCloudflare()
 		case <-done:
 			// done channel closed so exit the select and shutdown the seeder
 			dowhile = false
@@ -194,6 +188,30 @@ func (s *dnsseeder) runSeeder(done <-chan struct{}, wg *sync.WaitGroup) {
 	}
 	fmt.Printf("shutting down seeder: %s\n", s.name)
 	// end the goroutine & defer will call wg.Done()
+}
+
+func (s *dnsseeder) updateCloudflare() {
+
+	if s.cfHandler == nil {
+		return
+	}
+
+	s.mtx.Lock()
+	defer s.mtx.Unlock()
+
+	cgList := []string{}
+
+	for _, nd := range s.theList {
+		if nd.status == statusCG {
+			if nd.na.IP.To4() != nil {
+				cgList = append(cgList, nd.na.IP.String())
+			}
+		}
+	}
+
+	added, deleted := s.cfHandler.Update(s.name, cgList)
+	log.Printf("%s: Cloudflare sync complete: added %d, deleted %d", s.name, added, deleted)
+
 }
 
 // startCrawlers is called on a time basis to start maxcrawlers new
@@ -472,9 +490,7 @@ func (s *dnsseeder) auditNodes() {
 	log.Printf("%s: Audit start. statusCG Goal: %v System Uptime: %s\n", s.name, cgGoal, time.Since(config.uptime).String())
 
 	s.mtx.Lock()
-	// defer s.mtx.Unlock()
-
-	var purged []net.IP
+	defer s.mtx.Unlock()
 
 	for k, nd := range s.theList {
 
@@ -497,8 +513,6 @@ func (s *dnsseeder) auditNodes() {
 			}
 
 			c++
-			purged = append(purged, nd.na.IP)
-
 			// remove the map entry and mark the old node as
 			// nil so garbage collector will remove it
 			s.theList[k] = nil
@@ -512,8 +526,6 @@ func (s *dnsseeder) auditNodes() {
 			}
 
 			c++
-			purged = append(purged, nd.na.IP)
-
 			// remove the map entry and mark the old node as
 			// nil so garbage collector will remove it
 			s.theList[k] = nil
@@ -529,8 +541,6 @@ func (s *dnsseeder) auditNodes() {
 				}
 
 				c++
-				purged = append(purged, nd.na.IP)
-
 				// remove the map entry and mark the old node as
 				// nil so garbage collector will remove it
 				s.theList[k] = nil
@@ -538,64 +548,10 @@ func (s *dnsseeder) auditNodes() {
 			}
 		}
 	}
-
-	var remaining []string
-	for _, h := range s.theList {
-		if h.na.IP.To4() != nil {
-			remaining = append(remaining, h.na.IP.String())
-		}
-	}
-	s.mtx.Unlock()
-
-	if s.cfHandler != nil {
-		eg, ctx := errgroup.WithContext(context.Background())
-		for _, host := range purged {
-			if host.To4() == nil {
-				continue
-			}
-			host := host // capture
-			eg.Go(func() error {
-				// give each delete its own deadline
-				reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				defer cancel()
-				if err := s.cfHandler.DeleteARecord(reqCtx, host.String()); err != nil {
-					log.Printf("%s: Cloudflare delete A-record failed for %s: %v", s.name, host, err)
-					return err
-				}
-				if config.verbose {
-					log.Printf("%s: Cloudflare A-record deleted for %s", s.name, host)
-				}
-				return nil
-			})
-		}
-		if err := eg.Wait(); err != nil {
-			log.Printf("%s: one or more CF deletions failed: %v", s.name, err)
-		}
-
-		eg2, ctx2 := errgroup.WithContext(context.Background())
-		for _, host := range remaining {
-			host := host // capture
-			eg2.Go(func() error {
-				reqCtx, cancel := context.WithTimeout(ctx2, 10*time.Second)
-				defer cancel()
-				if err := s.cfHandler.AddARecord(reqCtx, host); err != nil {
-					log.Printf("%s: Cloudflare add A-record failed for %s: %v", s.name, host, err)
-					return err
-				}
-				if config.verbose {
-					log.Printf("%s: Cloudflare A-record added for %s", s.name, host)
-				}
-				return nil
-			})
-		}
-		if err := eg2.Wait(); err != nil {
-			log.Printf("%s: one or more CF additions failed: %v", s.name, err)
-		}
-	}
-
 	if config.verbose {
 		log.Printf("%s: Audit complete. %v nodes purged\n", s.name, c)
 	}
+
 }
 
 // teatload loads the dns records with time based test data

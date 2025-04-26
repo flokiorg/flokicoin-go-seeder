@@ -48,7 +48,6 @@ func crawlIP(s *dnsseeder, r *result) ([]*wire.NetAddress, *crawlError) {
 	peerCfg := &peer.Config{
 		UserAgentName:    "flokicoin-seeder",
 		UserAgentVersion: "0.1",
-		Services:         0,
 		ChainParams:      &chaincfg.MainNetParams,
 		Listeners: peer.MessageListeners{
 			OnVersion: func(p *peer.Peer, msg *wire.MsgVersion) *wire.MsgReject {

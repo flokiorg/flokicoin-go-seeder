@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudflare/cloudflare-go"
@@ -31,6 +33,9 @@ type CFHandler struct {
 	api     *cloudflare.API
 	zoneID  *cloudflare.ResourceContainer
 	dnsname string
+	cache   map[string]time.Time
+
+	mu sync.Mutex
 }
 
 func NewCFHandler(ctx context.Context, apiToken, dnsname string) (*CFHandler, error) {
@@ -49,11 +54,18 @@ func NewCFHandler(ctx context.Context, apiToken, dnsname string) (*CFHandler, er
 		return nil, err
 	}
 
-	return &CFHandler{
+	cf := &CFHandler{
 		api:     api,
 		dnsname: dnsname,
 		zoneID:  cloudflare.ZoneIdentifier(zoneID),
-	}, nil
+		cache:   make(map[string]time.Time),
+	}
+
+	if err := cf.initCache(ctx); err != nil {
+		return nil, fmt.Errorf("cache failed: %v", err)
+	}
+
+	return cf, nil
 }
 
 func (cf *CFHandler) AddARecord(ctx context.Context, ip string) error {
@@ -69,7 +81,7 @@ func (cf *CFHandler) AddARecord(ctx context.Context, ip string) error {
 
 	_, err := cf.api.CreateDNSRecord(ctxTimeout, cf.zoneID, record)
 
-	if strings.Contains(err.Error(), "An identical record already exists") {
+	if err != nil && strings.Contains(err.Error(), "An identical record already exists") {
 		return nil
 	}
 	return err
@@ -112,6 +124,76 @@ func (cf *CFHandler) ListRecords(ctx context.Context) ([]cloudflare.DNSRecord, e
 	}
 
 	return records, nil
+}
+
+func (cf *CFHandler) initCache(ctx context.Context) error {
+	cf.mu.Lock()
+	defer cf.mu.Unlock()
+
+	ctxTimeout, cancel := context.WithTimeout(ctx, connectionTimeout)
+	defer cancel()
+
+	records, _, err := cf.api.ListDNSRecords(ctxTimeout, cf.zoneID, cloudflare.ListDNSRecordsParams{
+		Type: "A",
+		Name: cf.dnsname,
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, r := range records {
+		cf.cache[r.Content] = time.Now()
+	}
+
+	return nil
+}
+
+func (cf *CFHandler) Addresses() []string {
+	cf.mu.Lock()
+	defer cf.mu.Unlock()
+
+	addrs := make([]string, 0, len(cf.cache))
+	for addr := range cf.cache {
+		addrs = append(addrs, addr)
+	}
+
+	return addrs
+}
+
+func (cf *CFHandler) Update(name string, cgList []string) (added, deleted int) {
+	cf.mu.Lock()
+	defer cf.mu.Unlock()
+
+	goodIPs := make(map[string]struct{}, len(cgList))
+	for _, ip := range cgList {
+		goodIPs[ip] = struct{}{}
+	}
+
+	// Add IPs not in cache
+	for ip := range goodIPs {
+		if _, exists := cf.cache[ip]; !exists {
+			if err := cf.AddARecord(context.Background(), ip); err != nil {
+				log.Printf("%s: failed to add A record for IP %s: %v", name, ip, err)
+			} else {
+				cf.cache[ip] = time.Now()
+				added++
+			}
+		}
+	}
+
+	// Delete IPs not in the good list
+	for ip := range cf.cache {
+		if _, isGood := goodIPs[ip]; !isGood {
+			if err := cf.DeleteARecord(context.Background(), ip); err != nil {
+				log.Printf("%s: failed to delete A record for IP %s: %v", name, ip, err)
+			} else {
+				delete(cf.cache, ip)
+				deleted++
+			}
+		}
+	}
+
+	return added, deleted
 }
 
 func (cf *CFHandler) ListenAndProcess(ctx context.Context, ch <-chan ARecordMessage) {
