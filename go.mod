@@ -4,8 +4,9 @@ go 1.23.4
 
 require (
 	github.com/cloudflare/cloudflare-go v0.115.0
-	github.com/flokiorg/go-flokicoin v0.20.1-beta
+	github.com/flokiorg/go-flokicoin v0.25.7-beta
 	github.com/miekg/dns v1.1.63
+	golang.org/x/net v0.37.0
 )
 
 require (
@@ -18,12 +19,9 @@ require (
 	github.com/google/go-querystring v1.1.0 // indirect
 	golang.org/x/crypto v0.36.0 // indirect
 	golang.org/x/mod v0.23.0 // indirect
-	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/sync v0.12.0 // indirect
 	golang.org/x/sys v0.31.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.9.0 // indirect
+	golang.org/x/time v0.10.0 // indirect
 	golang.org/x/tools v0.30.0 // indirect
 )
-
-replace github.com/flokiorg/go-flokicoin => ../go-flokicoin
