@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
+	"os"
 	"testing"
 )
 
-const (
-	apiToken = "***REMOVED-SEE-SECURITY-INCIDENT***"
-)
-
 func setupConnection(t *testing.T) *CFHandler {
+	apiToken := os.Getenv("CLOUDFLARE_API_TOKEN")
+	if apiToken == "" {
+		t.Skip("CLOUDFLARE_API_TOKEN not set; skipping live Cloudflare integration test")
+	}
 
 	cf, err := NewCFHandler(context.Background(), apiToken, "dnsseed.myfloki.com")
 	if err != nil {

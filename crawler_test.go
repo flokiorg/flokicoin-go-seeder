@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -18,6 +17,9 @@ const (
 )
 
 func TestCrawlIP(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires a live network connection to a real flokicoin node")
+	}
 
 	s := &dnsseeder{
 		maxSize: 1,
@@ -39,15 +41,17 @@ func TestCrawlIP(t *testing.T) {
 	for _, addr := range addrs {
 		t.Logf("addr: %s:%d", addr.IP, addr.Port)
 	}
-	select {}
 }
 
 func TestCrawler(t *testing.T) {
+	if testing.Short() {
+		t.Skip("requires a live network connection to a real flokicoin node")
+	}
 
 	// Create TCP connection
 	conn, err := net.Dial("tcp", nodeAddress)
 	if err != nil {
-		log.Fatal("Failed to connect:", err)
+		t.Fatalf("Failed to connect: %v", err)
 	}
 	defer conn.Close()
 
@@ -79,7 +83,7 @@ func TestCrawler(t *testing.T) {
 	}
 	nodePeer, err := peer.NewOutboundPeer(cfg, nodeAddress)
 	if err != nil {
-		log.Fatalf("err: %v", err)
+		t.Fatalf("err: %v", err)
 	}
 
 	// Associate the peer with the connection
