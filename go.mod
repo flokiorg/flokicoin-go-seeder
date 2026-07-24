@@ -1,6 +1,6 @@
 module github.com/flokiorg/flokicoin-seeder
 
-go 1.26.1
+go 1.26.5
 
 require (
 	github.com/cloudflare/cloudflare-go v0.115.0
