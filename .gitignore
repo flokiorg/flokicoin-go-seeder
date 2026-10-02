@@ -24,3 +24,14 @@ _testmain.go
 *.prof
 
 test
+
+# Local agent/tooling directories, not part of the project.
+.agents/
+.claude/
+
+# GoReleaser build output.
+dist/
+
+# Binary produced by `go build ./...` in the repo root.
+flokicoin-go-seeder
+flokicoin-seeder
