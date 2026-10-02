@@ -2,6 +2,20 @@
 
 ## [0.1.5]
 
+### Changed
+
+- Built with Go 1.26.8, up from 1.26.5, which closes four reachable stdlib
+  vulnerabilities (GO-2026-6218 `net/url`, GO-2026-6090 `crypto/tls`,
+  GO-2026-5972 `encoding/asn1`, GO-2026-5026 `net/http`).
+- Updated every flokiorg dependency to its current release. `golang.org/x/text` and `golang.org/x/net`
+  moved to current releases, taking govulncheck from two reachable findings to
+  none.
+- The release workflow now runs `go test -short`, the same command CI runs; it
+  had been running the full suite, which cannot pass on a runner.
+- The release now publishes a multi-arch container image to
+  `ghcr.io/flokiorg/flokicoin-go-seeder`, and every push to the default branch publishes an
+  `:edge` image.
+
 ### Fixed
 
 - The seeder reported version 0.1.2 on its status page and advertised `0.1` as
