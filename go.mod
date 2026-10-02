@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/cloudflare/cloudflare-go v0.115.0
-	github.com/flokiorg/go-flokicoin v0.26.2
+	github.com/flokiorg/go-flokicoin v0.26.3
 	github.com/miekg/dns v1.1.63
 	golang.org/x/net v0.59.0
 )

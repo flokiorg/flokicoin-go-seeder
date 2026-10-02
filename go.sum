@@ -8,8 +8,8 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0 h1:NMZiJj8QnKe1LgsbDayM4UoHwbvw
 github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0/go.mod h1:ZXNYxsqcloTdSy/rNShjYzMhyjf0LaoftYK0p+A3h40=
 github.com/decred/dcrd/lru v1.1.3 h1:w9EAbvGLyzm6jTjF83UKuqZEiUtJmvRhQDOCEIvSuE0=
 github.com/decred/dcrd/lru v1.1.3/go.mod h1:Tw0i0pJyiLEx/oZdHLe1Wdv/Y7EGzAX+sYftnmxBR4o=
-github.com/flokiorg/go-flokicoin v0.26.2 h1:80NFZ8RJrA11iiinS1FamNHaPn/FH1yzWahQE0ypWBo=
-github.com/flokiorg/go-flokicoin v0.26.2/go.mod h1:HBUjxuYeKl+yHuYHxLWpzniiHTmh99Im7T6cB/BdL7g=
+github.com/flokiorg/go-flokicoin v0.26.3 h1:tVpG2ujKQs4w6DJmLG0rArqWJ1Qp9inFoHwnL9xX+1k=
+github.com/flokiorg/go-flokicoin v0.26.3/go.mod h1:CCRytgFUI+mK55DZB0cVmiQWPDD93L2WwUjH6HQyR3Q=
 github.com/flokiorg/go-socks v0.0.0-20170105172521-4720035b7bfd h1:+ronJTVUGaH8N/VRXwZLi5Sou7Ty41piC05oKHNehdc=
 github.com/flokiorg/go-socks v0.0.0-20170105172521-4720035b7bfd/go.mod h1:YSmQVJwQclEkeLWZjbFO3MFVAycIO/fTCTvDs1jRzaE=
 github.com/goccy/go-json v0.10.5 h1:Fq85nIqj+gXn/S5ahsiTlK3TmC85qgirsdTP/+DeaC4=
